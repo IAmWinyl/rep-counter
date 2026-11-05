@@ -1,0 +1,377 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#12204a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Reps">
+<title>Rep Counter</title>
+<style>
+  /* Layout: a slim control bar, then the rest of the screen is one giant tap target. */
+  :root {
+    --ink: #12204a;
+    --ink-raised: #1d2f66;
+    --fill: #2b4bb8;
+    --done: #ffc21f;
+    --on-done: #241a00;
+    --text: #f4f6ff;
+    --muted: #b6c1e6;
+    --error: #ffb4a8;
+    --font: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+    color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; }
+
+  [hidden] { display: none !important; }
+
+  html, body { height: 100%; margin: 0; }
+
+  body {
+    background: var(--ink);
+    color: var(--text);
+    font-family: var(--font);
+    overflow: hidden;
+    overscroll-behavior: none;
+    -webkit-tap-highlight-color: transparent;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  button, input { font: inherit; color: inherit; }
+
+  :focus-visible { outline: 3px solid var(--done); outline-offset: -3px; }
+
+  /* Setup screen */
+  #setup {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 16px;
+    max-width: 420px;
+    margin: 0 auto;
+    padding-block: 24px;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+  }
+
+  #setup label { font-size: 1.5rem; font-weight: 700; }
+
+  #target {
+    width: 100%;
+    padding: 12px;
+    border: 3px solid var(--fill);
+    border-radius: 10px;
+    background: var(--ink-raised);
+    font-size: 5rem;
+    font-weight: 800;
+    line-height: 1.1;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+    -webkit-user-select: text;
+    user-select: text;
+  }
+
+  #error { min-height: 1.4em; margin: 0; color: var(--error); }
+
+  #start {
+    min-height: 88px;
+    border: 0;
+    border-radius: 10px;
+    background: var(--done);
+    color: var(--on-done);
+    font-size: 1.75rem;
+    font-weight: 800;
+    cursor: pointer;
+  }
+
+  /* Counting screen */
+  #counter { height: 100%; display: flex; flex-direction: column; }
+
+  #bar {
+    display: flex;
+    align-items: stretch;
+    justify-content: space-between;
+    min-height: 56px;
+    padding-left: max(8px, env(safe-area-inset-left, 0px));
+    padding-right: max(8px, env(safe-area-inset-right, 0px));
+    padding-top: env(safe-area-inset-top, 0px);
+    background: var(--ink);
+  }
+
+  #bar button {
+    min-width: 88px;
+    border: 0;
+    background: none;
+    color: var(--muted);
+    font-size: 1rem;
+    cursor: pointer;
+  }
+
+  #bar button:disabled { opacity: 0.35; cursor: default; }
+
+  #set { align-self: center; color: var(--muted); font-weight: 700; }
+
+  #tap {
+    position: relative;
+    flex: 1;
+    width: 100%;
+    min-height: 0;
+    overflow: hidden;
+    border: 0;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    background: var(--ink-raised);
+    cursor: pointer;
+    touch-action: none;
+    -webkit-touch-callout: none;
+  }
+
+  /* Rises from the bottom as reps add up, so progress reads at a glance. */
+  #progress {
+    position: absolute;
+    inset: 0;
+    background: var(--fill);
+    transform-origin: bottom;
+    transform: scaleY(0);
+    transition: transform 120ms ease-out;
+  }
+
+  #readout {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    pointer-events: none;
+  }
+
+  #count {
+    font-size: min(50vw, 42vh);
+    font-weight: 800;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+  }
+
+  #hint { font-size: 1.5rem; font-weight: 700; text-align: center; }
+
+  #tap.done { background: var(--done); color: var(--on-done); }
+  #tap.done #progress { display: none; }
+
+  #tap.pressed #readout { transform: scale(0.97); }
+
+  @media (prefers-reduced-motion: reduce) {
+    #progress { transition: none; }
+    #tap.pressed #readout { transform: none; }
+  }
+</style>
+</head>
+<body>
+
+<form id="setup" novalidate>
+  <label for="target">Reps per set</label>
+  <input id="target" type="number" inputmode="numeric" pattern="[0-9]*" min="1" max="999" value="10">
+  <p id="error" role="alert"></p>
+  <button id="start" type="submit">Start counting</button>
+</form>
+
+<main id="counter" hidden>
+  <div id="bar">
+    <button id="undo" type="button">Undo</button>
+    <span id="set">Set 1</span>
+    <button id="change" type="button">Change reps</button>
+  </div>
+  <button id="tap" type="button" aria-live="polite">
+    <span id="progress"></span>
+    <span id="readout">
+      <span id="count">0</span>
+      <span id="hint">of 10</span>
+    </span>
+  </button>
+</main>
+
+<script>
+  const STORAGE_KEY = 'rep-counter-target';
+  const MIN_TAP_GAP_MS = 100;     // Stops one touch from registering twice.
+  const DONE_LOCKOUT_MS = 1000;   // Stops a stray extra tap from starting the next set.
+
+  const $ = (id) => document.getElementById(id);
+  const setup = $('setup');
+  const counter = $('counter');
+  const targetInput = $('target');
+  const error = $('error');
+  const tap = $('tap');
+  const undo = $('undo');
+
+  let target = 10;
+  let count = 0;
+  let setNumber = 1;
+  let isDone = false;
+  let lastTapAt = 0;
+  let doneAt = 0;
+  let audio = null;
+  let wakeLock = null;
+
+  function loadTarget() {
+    try {
+      const saved = Number(localStorage.getItem(STORAGE_KEY));
+      if (Number.isInteger(saved) && saved >= 1 && saved <= 999) targetInput.value = saved;
+    } catch (_) { /* Storage can be blocked; the default still works. */ }
+  }
+
+  function saveTarget() {
+    try { localStorage.setItem(STORAGE_KEY, String(target)); } catch (_) {}
+  }
+
+  // Browsers only allow sound once the page has been touched, so this runs on Start and on taps.
+  function wakeAudio() {
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContextClass) return;
+    if (!audio) audio = new AudioContextClass();
+    if (audio.state !== 'running') audio.resume().catch(() => {});
+  }
+
+  function playTones(startTimes, duration, frequency) {
+    if (!audio) return;
+    const schedule = () => {
+      const now = audio.currentTime + 0.01;
+      for (const offset of startTimes) {
+        const oscillator = audio.createOscillator();
+        const gain = audio.createGain();
+        const at = now + offset;
+        oscillator.type = 'square';
+        oscillator.frequency.value = frequency;
+        gain.gain.setValueAtTime(0.0001, at);
+        gain.gain.exponentialRampToValueAtTime(0.9, at + 0.01);
+        gain.gain.setValueAtTime(0.9, at + duration - 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.0001, at + duration);
+        oscillator.connect(gain).connect(audio.destination);
+        oscillator.start(at);
+        oscillator.stop(at + duration);
+      }
+    };
+    if (audio.state === 'running') schedule();
+    else audio.resume().then(schedule).catch(() => {});
+  }
+
+  const beepDone = () => playTones([0, 0.28, 0.56], 0.2, 880);
+  const beepReady = () => playTones([0], 0.08, 660);
+
+  function vibrate(pattern) {
+    if (navigator.vibrate) navigator.vibrate(pattern);
+  }
+
+  async function keepScreenOn() {
+    try {
+      if ('wakeLock' in navigator && document.visibilityState === 'visible') {
+        wakeLock = await navigator.wakeLock.request('screen');
+      }
+    } catch (_) { /* Not every phone allows this; counting still works. */ }
+  }
+
+  function render() {
+    $('count').textContent = count;
+    $('set').textContent = 'Set ' + setNumber;
+    $('hint').textContent = isDone ? 'Next tap starts set ' + (setNumber + 1) : 'of ' + target;
+    $('progress').style.transform = 'scaleY(' + count / target + ')';
+    tap.classList.toggle('done', isDone);
+    tap.setAttribute('aria-label', count + ' of ' + target + ' reps, set ' + setNumber);
+    undo.disabled = count === 0;
+  }
+
+  function registerRep() {
+    const now = performance.now();
+    if (now - lastTapAt < MIN_TAP_GAP_MS) return;
+    if (isDone && now - doneAt < DONE_LOCKOUT_MS) return;
+    lastTapAt = now;
+
+    if (isDone) {
+      isDone = false;
+      setNumber += 1;
+      count = 0;
+    }
+
+    count += 1;
+
+    if (count >= target) {
+      isDone = true;
+      doneAt = now;
+      beepDone();
+      vibrate([200, 80, 200, 80, 200]);
+    } else {
+      vibrate(25);
+    }
+    render();
+  }
+
+  setup.addEventListener('submit', (event) => {
+    event.preventDefault();
+    const value = Number(targetInput.value);
+    if (!Number.isInteger(value) || value < 1 || value > 999) {
+      error.textContent = 'Enter a whole number from 1 to 999.';
+      return;
+    }
+    error.textContent = '';
+    target = value;
+    count = 0;
+    setNumber = 1;
+    isDone = false;
+    saveTarget();
+    wakeAudio();
+    beepReady();
+    keepScreenOn();
+    setup.hidden = true;
+    counter.hidden = false;
+    render();
+  });
+
+  // Counting on touch-down makes taps feel instant and never waits for a finger to lift.
+  tap.addEventListener('pointerdown', (event) => {
+    if (!event.isPrimary) return;
+    tap.classList.add('pressed');
+    registerRep();
+  });
+
+  for (const type of ['pointerup', 'pointercancel', 'pointerleave']) {
+    tap.addEventListener(type, () => {
+      tap.classList.remove('pressed');
+      wakeAudio();
+    });
+  }
+
+  // Keyboard presses arrive as clicks with no pointer behind them.
+  tap.addEventListener('click', (event) => {
+    if (event.detail === 0) registerRep();
+  });
+
+  tap.addEventListener('contextmenu', (event) => event.preventDefault());
+
+  undo.addEventListener('click', () => {
+    if (count === 0) return;
+    count -= 1;
+    isDone = false;
+    render();
+  });
+
+  $('change').addEventListener('click', () => {
+    if (wakeLock) wakeLock.release().catch(() => {});
+    wakeLock = null;
+    counter.hidden = true;
+    setup.hidden = false;
+    targetInput.focus();
+    targetInput.select();
+  });
+
+  // The screen lock is dropped when the page is hidden, so take it back on return.
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && !counter.hidden) {
+      keepScreenOn();
+    }
+  });
+
+  loadTarget();
+</script>
+</body>
+</html>
